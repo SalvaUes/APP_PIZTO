@@ -1,0 +1,1 @@
+package sv.edu.ues.vl23003.saldo.sync; import android.content.Context; import androidx.annotation.NonNull; import androidx.work.Worker; import androidx.work.WorkerParameters; public class SyncWorker extends Worker {public SyncWorker(@NonNull Context c,@NonNull WorkerParameters p){super(c,p);}@NonNull @Override public Result doWork(){return Result.success();}}

@@ -1,0 +1,12 @@
+<resources>
+    <!-- TODO: Alinear con Figma oficial de PIZTO. -->
+    <color name="pizto_primary">#1B7A43</color>
+    <color name="pizto_primary_dark">#10542E</color>
+    <color name="pizto_accent">#F5B301</color>
+    <color name="pizto_background">#F7F9F8</color>
+    <color name="pizto_surface">#FFFFFF</color>
+    <color name="pizto_text_primary">#1C1B1F</color>
+    <color name="pizto_error">#B3261E</color>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+</resources>

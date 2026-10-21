@@ -1,0 +1,13 @@
+<resources>
+    <string name="app_name">Pizto</string>
+    <string name="splash_tagline">Tus finanzas, claras y al día</string>
+    <string name="login_title">Iniciar sesión</string>
+    <string name="register">Registrarme</string>
+    <string name="remember_credentials">Recordar credenciales</string>
+    <string name="register_title">Crear cuenta</string>
+    <string name="already_have_account">Ya tengo cuenta</string>
+    <string name="home_placeholder">Tu dashboard se implementará próximamente.</string>
+    <string name="profile">Perfil</string>
+    <string name="map">Mapa</string>
+    <string name="movements">Movimientos</string>
+</resources>

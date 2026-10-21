@@ -1,0 +1,1 @@
+package sv.edu.ues.vl23003.saldo.ui.profile; import android.os.Bundle; import androidx.appcompat.app.AppCompatActivity; import sv.edu.ues.vl23003.saldo.R; public class ProfileActivity extends AppCompatActivity {protected void onCreate(Bundle b){super.onCreate(b);setContentView(R.layout.activity_profile);}}

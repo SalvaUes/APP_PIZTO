@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "812709238732",
+    "project_id": "pizto-vl23003",
+    "storage_bucket": "pizto-vl23003.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:812709238732:android:a526cc7ce2787b295a2f69",
+        "android_client_info": {
+          "package_name": "sv.edu.ues.vl23003.saldo"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBzG4MhVdZGwYdY133AHrQn4mpP2O5TVfg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
