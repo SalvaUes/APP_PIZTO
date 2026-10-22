@@ -5,6 +5,7 @@ import androidx.room.Insert;
 import androidx.room.OnConflictStrategy;
 import androidx.room.Query;
 import androidx.room.Update;
+import java.util.List;
 import sv.edu.ues.vl23003.saldo.data.local.entity.UserEntity;
 
 @Dao
@@ -18,6 +19,12 @@ public interface UserDao {
 
     @Query("SELECT * FROM users WHERE uid = :uid LIMIT 1")
     UserEntity findByUid(String uid);
+
+    @Query("SELECT * FROM users WHERE syncStatus IS NOT NULL AND syncStatus != 'SYNCED'")
+    List<UserEntity> getPendingUsers();
+
+    @Query("SELECT COUNT(*) FROM users WHERE syncStatus IS NOT NULL AND syncStatus != 'SYNCED'")
+    int countPendingUsers();
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     long insert(UserEntity user);

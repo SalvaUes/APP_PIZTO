@@ -53,6 +53,10 @@ public class MovementDetailActivity extends AppCompatActivity {
         repository.getMovementById(movementId, new Callback<MovementEntity>() {
             @Override
             public void onSuccess(MovementEntity data) {
+                if (isFinishing()) {
+                    return;
+                }
+
                 movement = data;
                 displayMovement();
                 setupButtons();
@@ -60,17 +64,27 @@ public class MovementDetailActivity extends AppCompatActivity {
 
             @Override
             public void onError(Exception error) {
-                Toast.makeText(MovementDetailActivity.this, "Error: " + error.getMessage(), Toast.LENGTH_SHORT).show();
+                if (isFinishing()) {
+                    return;
+                }
+
+                String message = error.getMessage() != null ? error.getMessage() : "No se pudo cargar el movimiento";
+                Toast.makeText(MovementDetailActivity.this, "Error: " + message, Toast.LENGTH_SHORT).show();
                 finish();
             }
         });
     }
 
     private void displayMovement() {
+        if (movement == null) {
+            return;
+        }
+
         String typeText = MovementType.INCOME.name().equals(movement.getType()) ? "Ingreso" : "Gasto";
         binding.tvType.setText(typeText);
 
         String amountText = "$" + String.format(Locale.getDefault(), "%.2f", movement.getAmount());
+
         if (MovementType.INCOME.name().equals(movement.getType())) {
             binding.tvAmount.setText("+" + amountText);
             binding.tvAmount.setTextColor(getColor(R.color.pizto_income));
@@ -80,19 +94,31 @@ public class MovementDetailActivity extends AppCompatActivity {
         }
 
         String syncText = "Sincronización: ";
+
         if (SyncStatus.SYNCED.name().equals(movement.getSyncStatus())) {
             syncText += "Sincronizado";
         } else if (SyncStatus.ERROR.name().equals(movement.getSyncStatus())) {
-            syncText += "Error (reintentar desde Perfil)";
+            syncText += "Error, reintentar desde Perfil";
         } else {
             syncText += "Pendiente";
         }
+
         binding.tvSyncStatus.setText(syncText);
 
         binding.tvConcept.setText(movement.getConcept() != null ? movement.getConcept() : "Sin concepto");
         binding.tvCategory.setText(movement.getCategory() != null ? movement.getCategory() : "Sin categoría");
-        binding.tvContact.setText(movement.getContactName() != null && !movement.getContactName().isEmpty() ? movement.getContactName() : "No especificado");
-        binding.tvPayment.setText(movement.getPaymentMethod() != null && !movement.getPaymentMethod().isEmpty() ? movement.getPaymentMethod() : "No especificado");
+
+        binding.tvContact.setText(
+                movement.getContactName() != null && !movement.getContactName().isEmpty()
+                        ? movement.getContactName()
+                        : "No especificado"
+        );
+
+        binding.tvPayment.setText(
+                movement.getPaymentMethod() != null && !movement.getPaymentMethod().isEmpty()
+                        ? movement.getPaymentMethod()
+                        : "No especificado"
+        );
 
         if (movement.getDueDate() > 0) {
             SimpleDateFormat sdf = new SimpleDateFormat("dd/MM/yyyy", Locale.getDefault());
@@ -104,10 +130,16 @@ public class MovementDetailActivity extends AppCompatActivity {
         String statusText = MovementStatus.PAID.name().equals(movement.getStatus()) ? "Pagado" : "Pendiente";
         binding.tvStatus.setText(statusText);
 
-        binding.tvNote.setText(movement.getNote() != null && !movement.getNote().isEmpty() ? movement.getNote() : "Sin nota");
+        binding.tvNote.setText(
+                movement.getNote() != null && !movement.getNote().isEmpty()
+                        ? movement.getNote()
+                        : "Sin nota"
+        );
 
         if (MovementStatus.PAID.name().equals(movement.getStatus())) {
             binding.btnMarkPaid.setVisibility(View.GONE);
+        } else {
+            binding.btnMarkPaid.setVisibility(View.VISIBLE);
         }
     }
 
@@ -118,29 +150,50 @@ public class MovementDetailActivity extends AppCompatActivity {
     }
 
     private void markAsPaid() {
+        if (movement == null) {
+            return;
+        }
+
         movement.setStatus(MovementStatus.PAID.name());
+
         repository.updateMovement(movement, new Callback<Void>() {
             @Override
             public void onSuccess(Void data) {
+                if (isFinishing()) {
+                    return;
+                }
+
                 Toast.makeText(MovementDetailActivity.this, "Marcado como pagado", Toast.LENGTH_SHORT).show();
                 displayMovement();
             }
 
             @Override
             public void onError(Exception error) {
-                Toast.makeText(MovementDetailActivity.this, "Error: " + error.getMessage(), Toast.LENGTH_LONG).show();
+                if (isFinishing()) {
+                    return;
+                }
+
+                String message = error.getMessage() != null ? error.getMessage() : "No se pudo actualizar";
+                Toast.makeText(MovementDetailActivity.this, "Error: " + message, Toast.LENGTH_LONG).show();
             }
         });
     }
 
     private void editMovement() {
+        if (movement == null) {
+            return;
+        }
+
         Intent intent = new Intent(this, MovementFormActivity.class);
         intent.putExtra(AppConstants.EXTRA_MOVEMENT_ID, movement.getId());
         startActivity(intent);
-        finish();
     }
 
     private void confirmDelete() {
+        if (movement == null) {
+            return;
+        }
+
         new AlertDialog.Builder(this)
                 .setTitle("Eliminar movimiento")
                 .setMessage("¿Estás seguro de que deseas eliminar este movimiento?")
@@ -150,17 +203,39 @@ public class MovementDetailActivity extends AppCompatActivity {
     }
 
     private void deleteMovement() {
+        if (movement == null) {
+            return;
+        }
+
         repository.deleteMovement(movement.getId(), new Callback<Void>() {
             @Override
             public void onSuccess(Void data) {
+                if (isFinishing()) {
+                    return;
+                }
+
                 Toast.makeText(MovementDetailActivity.this, "Movimiento eliminado", Toast.LENGTH_SHORT).show();
                 finish();
             }
 
             @Override
             public void onError(Exception error) {
-                Toast.makeText(MovementDetailActivity.this, "Error: " + error.getMessage(), Toast.LENGTH_LONG).show();
+                if (isFinishing()) {
+                    return;
+                }
+
+                String message = error.getMessage() != null ? error.getMessage() : "No se pudo eliminar";
+                Toast.makeText(MovementDetailActivity.this, "Error: " + message, Toast.LENGTH_LONG).show();
             }
         });
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+
+        if (movementId != -1 && !isFinishing()) {
+            loadMovement();
+        }
     }
 }

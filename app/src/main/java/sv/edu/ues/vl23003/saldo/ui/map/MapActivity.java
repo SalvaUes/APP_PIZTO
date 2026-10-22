@@ -10,40 +10,58 @@ import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.MarkerOptions;
 import sv.edu.ues.vl23003.saldo.R;
+import sv.edu.ues.vl23003.saldo.databinding.ActivityMapBinding;
 import sv.edu.ues.vl23003.saldo.util.AppConstants;
 
 public class MapActivity extends AppCompatActivity implements OnMapReadyCallback {
 
+    private ActivityMapBinding binding;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_map);
+        binding = ActivityMapBinding.inflate(getLayoutInflater());
+        setContentView(binding.getRoot());
 
-        // carga el mapa desde el fragment
-        SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager()
-                .findFragmentById(R.id.map);
-
-        if (mapFragment != null) {
-            mapFragment.getMapAsync(this);
+        setSupportActionBar(binding.toolbar);
+        if (getSupportActionBar() != null) {
+            getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+            getSupportActionBar().setTitle("Mapa del negocio");
         }
+
+        SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager()
+                .findFragmentById(R.id.map_container);
+
+        if (mapFragment == null) {
+            mapFragment = SupportMapFragment.newInstance();
+            getSupportFragmentManager()
+                    .beginTransaction()
+                    .replace(R.id.map_container, mapFragment)
+                    .commit();
+        }
+
+        mapFragment.getMapAsync(this);
+    }
+
+    @Override
+    public boolean onSupportNavigateUp() {
+        finish();
+        return true;
     }
 
     @Override
     public void onMapReady(@NonNull GoogleMap googleMap) {
-
-        // punto del negocio
         LatLng businessLocation = new LatLng(
                 AppConstants.BUSINESS_LAT,
                 AppConstants.BUSINESS_LNG
         );
 
-        // marcador principal
         googleMap.addMarker(new MarkerOptions()
                 .position(businessLocation)
                 .title("PIZTO")
                 .snippet("Punto de referencia del negocio"));
 
-        // centra la camara en el negocio
-        googleMap.moveCamera(CameraUpdateFactory.newLatLngZoom(businessLocation, 15f));
+        googleMap.moveCamera(CameraUpdateFactory.newLatLngZoom(businessLocation, 16f));
+        googleMap.getUiSettings().setZoomControlsEnabled(true);
     }
 }

@@ -2,6 +2,7 @@ package sv.edu.ues.vl23003.saldo.data.repository;
 
 import android.content.Context;
 import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.firestore.SetOptions;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
@@ -37,23 +38,52 @@ public class UserRepository {
         this.executor = Executors.newSingleThreadExecutor();
     }
 
-    public void register(String email, String fullName, String password, Callback<Void> callback) {
+    public void register(String email, String fullName, String password, final Callback<Void> callback) {
         executor.execute(() -> {
             try {
                 if (!NetworkUtil.isNetworkAvailable(context)) {
                     callback.onError(new Exception("Se requiere internet para el registro inicial"));
                     return;
                 }
+
                 auth.createUserWithEmailAndPassword(email, password)
                         .addOnSuccessListener(authResult -> {
+                            if (authResult.getUser() == null) {
+                                callback.onError(new Exception("No se pudo obtener el identificador del usuario"));
+                                return;
+                            }
+
                             String uid = authResult.getUser().getUid();
+
                             executor.execute(() -> {
                                 try {
                                     UserEntity entity = buildUserEntity(uid, email, fullName, password);
                                     userDao.insert(entity);
-                                    saveUserToFirestore(uid, email, fullName);
                                     sessionManager.saveSession(uid, email, fullName);
-                                    callback.onSuccess(null);
+
+                                    pushUserToFirestore(uid, email, fullName, new Callback<Void>() {
+                                        @Override
+                                        public void onSuccess(Void value) {
+                                            executor.execute(() -> {
+                                                try {
+                                                    UserEntity saved = userDao.findByUid(uid);
+                                                    if (saved != null) {
+                                                        saved.setSyncStatus(SyncStatus.SYNCED.name());
+                                                        saved.setUpdatedAt(System.currentTimeMillis());
+                                                        userDao.update(saved);
+                                                    }
+                                                    callback.onSuccess(null);
+                                                } catch (Exception e) {
+                                                    callback.onError(e);
+                                                }
+                                            });
+                                        }
+
+                                        @Override
+                                        public void onError(Exception error) {
+                                            callback.onError(error);
+                                        }
+                                    });
                                 } catch (Exception e) {
                                     callback.onError(e);
                                 }
@@ -72,13 +102,21 @@ public class UserRepository {
                 if (NetworkUtil.isNetworkAvailable(context)) {
                     auth.signInWithEmailAndPassword(email, password)
                             .addOnSuccessListener(authResult -> {
+                                if (authResult.getUser() == null) {
+                                    callback.onError(new Exception("No se pudo obtener el identificador del usuario"));
+                                    return;
+                                }
+
                                 String uid = authResult.getUser().getUid();
+
                                 executor.execute(() -> {
                                     try {
                                         UserEntity existing = userDao.findByEmail(email);
                                         if (existing != null) {
                                             existing.setUid(uid);
-                                            existing.setSyncStatus(SyncStatus.SYNCED.name());
+                                            if (existing.getSyncStatus() == null || existing.getSyncStatus().isEmpty()) {
+                                                existing.setSyncStatus(SyncStatus.SYNCED.name());
+                                            }
                                             userDao.update(existing);
                                             sessionManager.saveSession(uid, email, existing.getFullName());
                                         } else {
@@ -94,7 +132,7 @@ public class UserRepository {
                 } else {
                     UserEntity local = userDao.findByEmail(email);
                     if (local != null && PasswordUtil.sha256(password).equals(local.getPasswordSha256())) {
-                        String uid = local.getUid() != null ? local.getUid() : "offline";
+                        String uid = local.getUid() != null && !local.getUid().isEmpty() ? local.getUid() : "offline";
                         sessionManager.saveSession(uid, email, local.getFullName());
                         callback.onSuccess(null);
                     } else {
@@ -110,33 +148,49 @@ public class UserRepository {
     public void updateProfile(String newFullName, String currentUid, Callback<Void> callback) {
         executor.execute(() -> {
             try {
+                if (currentUid == null || currentUid.isEmpty()) {
+                    callback.onError(new Exception("Sesion expirada"));
+                    return;
+                }
+
                 UserEntity local = userDao.findByUid(currentUid);
                 if (local == null) {
                     callback.onError(new Exception("Usuario local no encontrado"));
                     return;
                 }
+
                 local.setFullName(newFullName);
                 local.setUpdatedAt(System.currentTimeMillis());
                 local.setSyncStatus(SyncStatus.PENDING_SYNC.name());
                 userDao.update(local);
                 sessionManager.saveSession(currentUid, local.getEmail(), newFullName);
 
-                if (NetworkUtil.isNetworkAvailable(context)) {
-                    Map<String, Object> updates = new HashMap<>();
-                    updates.put("fullName", newFullName);
-                    updates.put("updatedAt", System.currentTimeMillis());
-                    firestoreClient.usersRef(currentUid)
-                            .document(PROFILE_DOC_ID)
-                            .update(updates)
-                            .addOnSuccessListener(aVoid -> executor.execute(() -> {
-                                local.setSyncStatus(SyncStatus.SYNCED.name());
-                                userDao.update(local);
-                                callback.onSuccess(null);
-                            }))
-                            .addOnFailureListener(callback::onError);
-                } else {
+                if (!NetworkUtil.isNetworkAvailable(context)) {
                     callback.onSuccess(null);
+                    return;
                 }
+
+                Map<String, Object> updates = new HashMap<>();
+                updates.put("fullName", newFullName);
+                updates.put("updatedAt", System.currentTimeMillis());
+
+                firestoreClient.usersRef(currentUid)
+                        .document(PROFILE_DOC_ID)
+                        .set(updates, SetOptions.merge())
+                        .addOnSuccessListener(aVoid -> executor.execute(() -> {
+                            try {
+                                UserEntity fresh = userDao.findByUid(currentUid);
+                                if (fresh != null) {
+                                    fresh.setSyncStatus(SyncStatus.SYNCED.name());
+                                    fresh.setUpdatedAt(System.currentTimeMillis());
+                                    userDao.update(fresh);
+                                }
+                                callback.onSuccess(null);
+                            } catch (Exception e) {
+                                callback.onError(e);
+                            }
+                        }))
+                        .addOnFailureListener(callback::onError);
             } catch (Exception e) {
                 callback.onError(e);
             }
@@ -150,10 +204,12 @@ public class UserRepository {
                     callback.onError(new Exception("Sesion expirada"));
                     return;
                 }
+
                 if (!NetworkUtil.isNetworkAvailable(context)) {
                     callback.onError(new Exception("Se requiere internet para cambiar la contrasena"));
                     return;
                 }
+
                 auth.getCurrentUser().updatePassword(newPassword)
                         .addOnSuccessListener(aVoid -> executor.execute(() -> {
                             try {
@@ -175,6 +231,10 @@ public class UserRepository {
         });
     }
 
+    public int getPendingProfileCount() {
+        return userDao.countPendingUsers();
+    }
+
     private UserEntity buildUserEntity(String uid, String email, String fullName, String password) {
         UserEntity entity = new UserEntity();
         entity.setUid(uid);
@@ -183,16 +243,21 @@ public class UserRepository {
         entity.setPasswordSha256(PasswordUtil.sha256(password));
         entity.setCreatedAt(System.currentTimeMillis());
         entity.setUpdatedAt(entity.getCreatedAt());
-        entity.setSyncStatus(SyncStatus.SYNCED.name());
+        entity.setSyncStatus(SyncStatus.PENDING_SYNC.name());
         return entity;
     }
 
-    private void saveUserToFirestore(String uid, String email, String fullName) {
+    private void pushUserToFirestore(String uid, String email, String fullName, Callback<Void> callback) {
         Map<String, Object> userData = new HashMap<>();
         userData.put("email", email);
         userData.put("fullName", fullName);
         userData.put("createdAt", System.currentTimeMillis());
         userData.put("updatedAt", System.currentTimeMillis());
-        firestoreClient.usersRef(uid).document(PROFILE_DOC_ID).set(userData);
+
+        firestoreClient.usersRef(uid)
+                .document(PROFILE_DOC_ID)
+                .set(userData, SetOptions.merge())
+                .addOnSuccessListener(aVoid -> callback.onSuccess(null))
+                .addOnFailureListener(callback::onError);
     }
 }

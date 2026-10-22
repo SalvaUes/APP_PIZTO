@@ -16,6 +16,7 @@ import sv.edu.ues.vl23003.saldo.databinding.ActivityProfileBinding;
 import sv.edu.ues.vl23003.saldo.sync.SyncManager;
 import sv.edu.ues.vl23003.saldo.ui.auth.LoginActivity;
 import sv.edu.ues.vl23003.saldo.util.Callback;
+import sv.edu.ues.vl23003.saldo.util.NetworkUtil;
 import sv.edu.ues.vl23003.saldo.util.SessionManager;
 import sv.edu.ues.vl23003.saldo.util.Validators;
 
@@ -58,9 +59,21 @@ public class ProfileActivity extends AppCompatActivity {
 
     private void loadPendingCount() {
         executor.execute(() -> {
-            int count = movementRepository.getPendingCount();
-            runOnUiThread(() -> binding.tvPendingCount.setText(
-                    String.format(Locale.getDefault(), "Movimientos pendientes: %d", count)));
+            try {
+                int movementPending = movementRepository.getPendingCount();
+                int profilePending = userRepository.getPendingProfileCount();
+                int total = movementPending + profilePending;
+
+                runOnUiThread(() -> {
+                    if (total == 0) {
+                        binding.tvPendingCount.setText("No hay cambios pendientes");
+                    } else {
+                        binding.tvPendingCount.setText(String.format(Locale.getDefault(), "Cambios pendientes: %d", total));
+                    }
+                });
+            } catch (Exception e) {
+                runOnUiThread(() -> binding.tvPendingCount.setText("No se pudo calcular la sincronización"));
+            }
         });
     }
 
@@ -77,18 +90,27 @@ public class ProfileActivity extends AppCompatActivity {
             binding.etFullName.setError("El nombre debe tener minimo 7 caracteres");
             return;
         }
+
         String uid = sessionManager.getSessionUid();
         if (uid == null || uid.isEmpty()) {
             Toast.makeText(this, "Sesion expirada", Toast.LENGTH_SHORT).show();
             return;
         }
+
+        final boolean online = NetworkUtil.isNetworkAvailable(this);
         binding.btnUpdateName.setEnabled(false);
+
         userRepository.updateProfile(newFullName, uid, new Callback<Void>() {
             @Override
             public void onSuccess(Void data) {
                 runOnUiThread(() -> {
                     binding.btnUpdateName.setEnabled(true);
-                    Toast.makeText(ProfileActivity.this, "Nombre actualizado", Toast.LENGTH_SHORT).show();
+                    if (online) {
+                        Toast.makeText(ProfileActivity.this, "Nombre actualizado correctamente", Toast.LENGTH_SHORT).show();
+                    } else {
+                        Toast.makeText(ProfileActivity.this, "Nombre guardado localmente pendiente de sincronizacion", Toast.LENGTH_LONG).show();
+                    }
+                    loadPendingCount();
                 });
             }
 
@@ -96,7 +118,8 @@ public class ProfileActivity extends AppCompatActivity {
             public void onError(Exception error) {
                 runOnUiThread(() -> {
                     binding.btnUpdateName.setEnabled(true);
-                    Toast.makeText(ProfileActivity.this, "Error: " + error.getMessage(), Toast.LENGTH_LONG).show();
+                    String message = error.getMessage() != null ? error.getMessage() : "No se pudo actualizar el nombre";
+                    Toast.makeText(ProfileActivity.this, "Error: " + message, Toast.LENGTH_LONG).show();
                 });
             }
         });
@@ -110,6 +133,7 @@ public class ProfileActivity extends AppCompatActivity {
             binding.etNewPassword.setError("Minimo 8 caracteres alfanumericos");
             return;
         }
+
         if (!Validators.passwordsMatch(newPassword, confirmPassword)) {
             binding.etConfirmPassword.setError("Las contrasenas no coinciden");
             return;
@@ -121,7 +145,13 @@ public class ProfileActivity extends AppCompatActivity {
             return;
         }
 
+        if (!NetworkUtil.isNetworkAvailable(this)) {
+            Toast.makeText(this, "Se requiere internet para cambiar la contrasena", Toast.LENGTH_LONG).show();
+            return;
+        }
+
         binding.btnUpdatePassword.setEnabled(false);
+
         userRepository.updatePassword(newPassword, uid, new Callback<Void>() {
             @Override
             public void onSuccess(Void data) {
@@ -129,7 +159,7 @@ public class ProfileActivity extends AppCompatActivity {
                     binding.btnUpdatePassword.setEnabled(true);
                     binding.etNewPassword.setText("");
                     binding.etConfirmPassword.setText("");
-                    Toast.makeText(ProfileActivity.this, "Contrasena actualizada", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(ProfileActivity.this, "Contrasena actualizada correctamente", Toast.LENGTH_SHORT).show();
                 });
             }
 
@@ -137,7 +167,8 @@ public class ProfileActivity extends AppCompatActivity {
             public void onError(Exception error) {
                 runOnUiThread(() -> {
                     binding.btnUpdatePassword.setEnabled(true);
-                    Toast.makeText(ProfileActivity.this, "Error: " + error.getMessage(), Toast.LENGTH_LONG).show();
+                    String message = error.getMessage() != null ? error.getMessage() : "No se pudo actualizar la contrasena";
+                    Toast.makeText(ProfileActivity.this, "Error: " + message, Toast.LENGTH_LONG).show();
                 });
             }
         });
@@ -145,17 +176,24 @@ public class ProfileActivity extends AppCompatActivity {
 
     private void syncNow() {
         binding.btnSyncNow.setEnabled(false);
-        binding.btnSyncNow.setText("Sincronizando...");
-        syncManager.pushPendingMovements(new Callback<Integer>() {
+        binding.btnSyncNow.setText("Sincronizando");
+
+        syncManager.syncAllPendingChanges(new Callback<Integer>() {
             @Override
             public void onSuccess(Integer synced) {
                 runOnUiThread(() -> {
                     binding.btnSyncNow.setEnabled(true);
                     binding.btnSyncNow.setText("Reintentar sincronizacion");
+
                     int count = synced != null ? synced : 0;
-                    Toast.makeText(ProfileActivity.this,
-                            String.format(Locale.getDefault(), "Sincronizados: %d", count),
-                            Toast.LENGTH_SHORT).show();
+                    if (count == 0) {
+                        Toast.makeText(ProfileActivity.this, "No habia cambios pendientes", Toast.LENGTH_SHORT).show();
+                    } else {
+                        Toast.makeText(ProfileActivity.this,
+                                String.format(Locale.getDefault(), "Cambios sincronizados: %d", count),
+                                Toast.LENGTH_SHORT).show();
+                    }
+
                     String now = new SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()).format(new Date());
                     binding.tvLastSync.setText(String.format(Locale.getDefault(), "Ultima sincronizacion: %s", now));
                     loadPendingCount();
@@ -167,7 +205,8 @@ public class ProfileActivity extends AppCompatActivity {
                 runOnUiThread(() -> {
                     binding.btnSyncNow.setEnabled(true);
                     binding.btnSyncNow.setText("Reintentar sincronizacion");
-                    Toast.makeText(ProfileActivity.this, "Error: " + error.getMessage(), Toast.LENGTH_LONG).show();
+                    String message = error.getMessage() != null ? error.getMessage() : "No se pudo sincronizar";
+                    Toast.makeText(ProfileActivity.this, "Error: " + message, Toast.LENGTH_LONG).show();
                 });
             }
         });
