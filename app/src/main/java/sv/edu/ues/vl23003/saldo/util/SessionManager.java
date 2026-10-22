@@ -13,6 +13,7 @@ public class SessionManager {
     public void clearCredentials() { preferences.edit().remove("saved_email").remove("saved_password").apply(); }
     public void saveSession(String uid, String email, String fullName) { preferences.edit().putString("uid", uid).putString("email", email).putString("full_name", fullName).apply(); }
     public boolean isLoggedIn() { return !preferences.getString("uid", "").isEmpty(); }
+    public String getSessionUid() { return preferences.getString("uid", ""); }
     public String getSessionEmail() { return preferences.getString("email", ""); }
     public String getSessionFullName() { return preferences.getString("full_name", ""); }
     public void clearSession() { preferences.edit().remove("uid").remove("email").remove("full_name").apply(); }
