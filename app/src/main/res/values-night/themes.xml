@@ -1,7 +1,1 @@
-<resources>
-    <style name="Base.Theme.Pizto" parent="Theme.Material3.DayNight.NoActionBar">
-        <item name="colorPrimary">@color/pizto_primary</item>
-        <item name="colorSecondary">@color/pizto_accent</item>
-    </style>
-    <style name="Theme.Pizto" parent="Base.Theme.Pizto" />
-</resources>
+<resources><style name="Base.Theme.Pizto" parent="Theme.Material3.Light.NoActionBar"><item name="colorPrimary">#0D6D57</item><item name="colorSecondary">#0D6D57</item><item name="android:colorBackground">#FFFFFF</item><item name="android:fontFamily">sans</item><item name="android:windowLightStatusBar">true</item><item name="android:statusBarColor">#FFFFFF</item><item name="android:navigationBarColor">#FFFFFF</item><item name="android:windowLightNavigationBar">true</item><item name="android:windowOptOutEdgeToEdgeEnforcement">true</item></style><style name="Theme.Pizto" parent="Base.Theme.Pizto"/></resources>
