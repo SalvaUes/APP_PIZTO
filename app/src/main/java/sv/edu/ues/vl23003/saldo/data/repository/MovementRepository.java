@@ -77,17 +77,17 @@ public class MovementRepository {
                 movement.setSyncStatus(SyncStatus.PENDING_SYNC.name());
                 movement.setCreatedAt(System.currentTimeMillis());
                 movement.setUpdatedAt(movement.getCreatedAt());
+
                 long id = movementDao.insert(movement);
                 movement.setId(id);
 
-                if (canSync()) {
-                    pushCreate(movement, callback);
-                } else {
-                    mainHandler.post(() -> callback.onSuccess(null));
-                }
             } catch (Exception e) {
                 mainHandler.post(() -> callback.onError(e));
+                return;
             }
+
+            // El movimiento ya quedó guardado en la base de datos local.
+            mainHandler.post(() -> callback.onSuccess(null));
         });
     }
 
@@ -96,16 +96,16 @@ public class MovementRepository {
             try {
                 movement.setSyncStatus(SyncStatus.PENDING_SYNC.name());
                 movement.setUpdatedAt(System.currentTimeMillis());
+
                 movementDao.update(movement);
 
-                if (canSync()) {
-                    pushUpsert(movement, callback);
-                } else {
-                    mainHandler.post(() -> callback.onSuccess(null));
-                }
             } catch (Exception e) {
                 mainHandler.post(() -> callback.onError(e));
+                return;
             }
+
+            // La actualización local ya terminó.
+            mainHandler.post(() -> callback.onSuccess(null));
         });
     }
 

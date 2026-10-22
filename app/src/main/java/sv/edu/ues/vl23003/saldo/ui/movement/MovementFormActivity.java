@@ -3,8 +3,6 @@ package sv.edu.ues.vl23003.saldo.ui.movement;
 import android.app.DatePickerDialog;
 import android.content.Intent;
 import android.os.Bundle;
-import android.os.Handler;
-import android.os.Looper;
 import android.widget.ArrayAdapter;
 import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
@@ -33,7 +31,6 @@ public class MovementFormActivity extends AppCompatActivity {
     private MovementEntity editingMovement;
     private boolean saving = false;
 
-    private final Handler navigationHandler = new Handler(Looper.getMainLooper());
 
     private final String[] categories = {
             "Alimentación",
@@ -250,12 +247,7 @@ public class MovementFormActivity extends AppCompatActivity {
             repository.updateMovement(movement, new Callback<Void>() {
                 @Override
                 public void onSuccess(Void data) {
-                    if (isFinishing()) {
-                        return;
-                    }
-
-                    Toast.makeText(MovementFormActivity.this, "Movimiento actualizado correctamente", Toast.LENGTH_SHORT).show();
-                    goToHomeAfterDelay();
+                    completeSave("Movimiento actualizado");
                 }
 
                 @Override
@@ -288,12 +280,13 @@ public class MovementFormActivity extends AppCompatActivity {
             repository.createMovement(movement, new Callback<Void>() {
                 @Override
                 public void onSuccess(Void data) {
-                    if (isFinishing()) {
-                        return;
-                    }
+                    String message = MovementType.EXPENSE.name().equals(
+                            movement.getType()
+                    )
+                            ? "Gasto agregado"
+                            : "Ingreso agregado";
 
-                    Toast.makeText(MovementFormActivity.this, "Movimiento guardado correctamente", Toast.LENGTH_SHORT).show();
-                    goToHomeAfterDelay();
+                    completeSave(message);
                 }
 
                 @Override
@@ -313,14 +306,6 @@ public class MovementFormActivity extends AppCompatActivity {
         }
     }
 
-    private void goToHomeAfterDelay() {
-        navigationHandler.postDelayed(() -> {
-            if (!isFinishing()) {
-                goToHome();
-            }
-        }, 700);
-    }
-
     private void goToHome() {
         Intent intent = new Intent(this, HomeActivity.class);
         intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
@@ -328,9 +313,41 @@ public class MovementFormActivity extends AppCompatActivity {
         finish();
     }
 
-    @Override
-    protected void onDestroy() {
-        navigationHandler.removeCallbacksAndMessages(null);
-        super.onDestroy();
+    private void clearForm() {
+        binding.etAmount.setText("");
+        binding.etConcept.setText("");
+        binding.actCategory.setText("", false);
+        binding.etContact.setText("");
+        binding.actPayment.setText("", false);
+        binding.etNote.setText("");
+
+        binding.etAmount.setError(null);
+        binding.etConcept.setError(null);
+
+        binding.chipIncome.setChecked(true);
+        selectedType = MovementType.INCOME.name();
+
+        binding.switchPaid.setChecked(true);
+
+        selectedDate = Calendar.getInstance();
+        updateDateDisplay();
+
+        binding.getRoot().clearFocus();
+    }
+
+    private void completeSave(String message) {
+        if (isFinishing() || isDestroyed()) {
+            return;
+        }
+
+        clearForm();
+
+        Toast.makeText(
+                getApplicationContext(),
+                message,
+                Toast.LENGTH_SHORT
+        ).show();
+
+        goToHome();
     }
 }
