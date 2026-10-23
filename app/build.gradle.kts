@@ -1,3 +1,6 @@
+import java.io.FileInputStream
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     id("com.google.gms.google-services")
@@ -16,8 +19,18 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        val mapsKey = (project.findProperty("MAPS_API_KEY") as? String) ?: ""
-        manifestPlaceholders["MAPS_API_KEY"] = mapsKey
+        val propsFile = rootProject.file("local.properties")
+        var apiKeyValue = ""
+
+        if (propsFile.exists()) {
+            val props = Properties()
+            FileInputStream(propsFile).use { input ->
+                props.load(input)
+            }
+            apiKeyValue = props.getProperty("MAPS_API_KEY").orEmpty()
+        }
+
+        manifestPlaceholders["MAPS_API_KEY"] = apiKeyValue
     }
 
     buildTypes {
