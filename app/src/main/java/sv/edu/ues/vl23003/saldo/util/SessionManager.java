@@ -17,4 +17,6 @@ public class SessionManager {
     public String getSessionEmail() { return preferences.getString("email", ""); }
     public String getSessionFullName() { return preferences.getString("full_name", ""); }
     public void clearSession() { preferences.edit().remove("uid").remove("email").remove("full_name").apply(); }
+    public void saveLastSync(long timestamp) { preferences.edit().putLong("last_sync", timestamp).apply(); }
+    public long getLastSync() { return preferences.getLong("last_sync", 0L); }
 }

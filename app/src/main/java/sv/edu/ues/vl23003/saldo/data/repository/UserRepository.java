@@ -59,8 +59,6 @@ public class UserRepository {
                                 try {
                                     UserEntity entity = buildUserEntity(uid, email, fullName, password);
                                     userDao.insert(entity);
-                                    sessionManager.saveSession(uid, email, fullName);
-
                                     pushUserToFirestore(uid, email, fullName, new Callback<Void>() {
                                         @Override
                                         public void onSuccess(Void value) {
@@ -72,18 +70,18 @@ public class UserRepository {
                                                         saved.setUpdatedAt(System.currentTimeMillis());
                                                         userDao.update(saved);
                                                     }
-                                                    callback.onSuccess(null);
                                                 } catch (Exception e) {
-                                                    callback.onError(e);
+                                                    // The local record remains available for the next retry.
                                                 }
                                             });
                                         }
 
                                         @Override
                                         public void onError(Exception error) {
-                                            callback.onError(error);
+                                            // Registration is already complete; WorkManager will retry the pending record.
                                         }
                                     });
+                                    callback.onSuccess(null);
                                 } catch (Exception e) {
                                     callback.onError(e);
                                 }
@@ -114,15 +112,19 @@ public class UserRepository {
                                         UserEntity existing = userDao.findByEmail(email);
                                         if (existing != null) {
                                             existing.setUid(uid);
+                                            existing.setPasswordSha256(PasswordUtil.sha256(password));
                                             if (existing.getSyncStatus() == null || existing.getSyncStatus().isEmpty()) {
                                                 existing.setSyncStatus(SyncStatus.SYNCED.name());
                                             }
                                             userDao.update(existing);
                                             sessionManager.saveSession(uid, email, existing.getFullName());
                                         } else {
+                                            UserEntity local = buildUserEntity(uid, email, email, password);
+                                            local.setSyncStatus(SyncStatus.SYNCED.name());
+                                            userDao.insert(local);
                                             sessionManager.saveSession(uid, email, email);
                                         }
-                                        callback.onSuccess(null);
+                                        loadRemoteName(uid, email, callback);
                                     } catch (Exception e) {
                                         callback.onError(e);
                                     }
@@ -145,7 +147,7 @@ public class UserRepository {
         });
     }
 
-    public void updateProfile(String newFullName, String currentUid, Callback<Void> callback) {
+    public void updateProfile(String newFullName, String currentUid, Callback<Boolean> callback) {
         executor.execute(() -> {
             try {
                 if (currentUid == null || currentUid.isEmpty()) {
@@ -166,7 +168,7 @@ public class UserRepository {
                 sessionManager.saveSession(currentUid, local.getEmail(), newFullName);
 
                 if (!NetworkUtil.isNetworkAvailable(context)) {
-                    callback.onSuccess(null);
+                    callback.onSuccess(false);
                     return;
                 }
 
@@ -185,12 +187,13 @@ public class UserRepository {
                                     fresh.setUpdatedAt(System.currentTimeMillis());
                                     userDao.update(fresh);
                                 }
-                                callback.onSuccess(null);
+                                sessionManager.saveLastSync(System.currentTimeMillis());
+                                callback.onSuccess(true);
                             } catch (Exception e) {
-                                callback.onError(e);
+                                callback.onSuccess(false);
                             }
                         }))
-                        .addOnFailureListener(callback::onError);
+                        .addOnFailureListener(error -> callback.onSuccess(false));
             } catch (Exception e) {
                 callback.onError(e);
             }
@@ -219,6 +222,7 @@ public class UserRepository {
                                     local.setUpdatedAt(System.currentTimeMillis());
                                     userDao.update(local);
                                 }
+                                sessionManager.saveLastSync(System.currentTimeMillis());
                                 callback.onSuccess(null);
                             } catch (Exception e) {
                                 callback.onError(e);
@@ -233,6 +237,27 @@ public class UserRepository {
 
     public int getPendingProfileCount() {
         return userDao.countPendingUsers();
+    }
+
+    private void loadRemoteName(String uid, String email, Callback<Void> callback) {
+        firestoreClient.usersRef(uid).document(PROFILE_DOC_ID).get()
+                .addOnSuccessListener(snapshot -> executor.execute(() -> {
+                    try {
+                        UserEntity local = userDao.findByUid(uid);
+                        String fullName = snapshot.getString("fullName");
+                        if (local != null && fullName != null && !fullName.trim().isEmpty()) {
+                            local.setFullName(fullName.trim());
+                            local.setSyncStatus(SyncStatus.SYNCED.name());
+                            userDao.update(local);
+                        }
+                        sessionManager.saveSession(uid, email,
+                                local != null ? local.getFullName() : email);
+                        callback.onSuccess(null);
+                    } catch (Exception error) {
+                        callback.onError(error);
+                    }
+                }))
+                .addOnFailureListener(error -> callback.onSuccess(null));
     }
 
     private UserEntity buildUserEntity(String uid, String email, String fullName, String password) {

@@ -40,7 +40,7 @@
             <TextView
                 style="@style/AuthLabel"
                 android:layout_marginTop="42dp"
-                android:text="Usuario" />
+                android:text="Correo" />
 
             <EditText
                 style="@style/AuthInput"

@@ -181,7 +181,7 @@
                         android:id="@+id/tv_last_sync"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="Ultima sincronizacion: nunca"
+                        android:text="Última sincronización con Firebase: nunca"
                         android:textSize="14sp"
                         android:layout_marginBottom="12dp" />
 

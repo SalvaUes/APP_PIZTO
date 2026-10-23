@@ -42,6 +42,7 @@ public class ProfileActivity extends AppCompatActivity {
 
         setupToolbar();
         loadUserData();
+        loadLastSync();
         loadPendingCount();
         setupButtons();
     }
@@ -70,11 +71,25 @@ public class ProfileActivity extends AppCompatActivity {
                     } else {
                         binding.tvPendingCount.setText(String.format(Locale.getDefault(), "Cambios pendientes: %d", total));
                     }
+
                 });
             } catch (Exception e) {
                 runOnUiThread(() -> binding.tvPendingCount.setText("No se pudo calcular la sincronización"));
             }
         });
+    }
+
+    private void loadLastSync() {
+        long timestamp = sessionManager.getLastSync();
+        if (timestamp == 0L) {
+            binding.tvLastSync.setText("Última sincronización con Firebase: nunca");
+            return;
+        }
+
+        String formatted = new SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault())
+                .format(new Date(timestamp));
+        binding.tvLastSync.setText(String.format(Locale.getDefault(),
+                "Última sincronización con Firebase: %s", formatted));
     }
 
     private void setupButtons() {
@@ -97,18 +112,17 @@ public class ProfileActivity extends AppCompatActivity {
             return;
         }
 
-        final boolean online = NetworkUtil.isNetworkAvailable(this);
         binding.btnUpdateName.setEnabled(false);
 
-        userRepository.updateProfile(newFullName, uid, new Callback<Void>() {
+        userRepository.updateProfile(newFullName, uid, new Callback<Boolean>() {
             @Override
-            public void onSuccess(Void data) {
+            public void onSuccess(Boolean synced) {
                 runOnUiThread(() -> {
                     binding.btnUpdateName.setEnabled(true);
-                    if (online) {
-                        Toast.makeText(ProfileActivity.this, "Nombre actualizado correctamente", Toast.LENGTH_SHORT).show();
+                    if (Boolean.TRUE.equals(synced)) {
+                        showUpdateConfirmation("Nombre actualizado correctamente.");
                     } else {
-                        Toast.makeText(ProfileActivity.this, "Nombre guardado localmente pendiente de sincronizacion", Toast.LENGTH_LONG).show();
+                        showUpdateConfirmation("Nombre guardado localmente. Quedará pendiente de sincronización.");
                     }
                     loadPendingCount();
                 });
@@ -159,7 +173,7 @@ public class ProfileActivity extends AppCompatActivity {
                     binding.btnUpdatePassword.setEnabled(true);
                     binding.etNewPassword.setText("");
                     binding.etConfirmPassword.setText("");
-                    Toast.makeText(ProfileActivity.this, "Contrasena actualizada correctamente", Toast.LENGTH_SHORT).show();
+                    showUpdateConfirmation("Contraseña actualizada correctamente.");
                 });
             }
 
@@ -194,8 +208,7 @@ public class ProfileActivity extends AppCompatActivity {
                                 Toast.LENGTH_SHORT).show();
                     }
 
-                    String now = new SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()).format(new Date());
-                    binding.tvLastSync.setText(String.format(Locale.getDefault(), "Ultima sincronizacion: %s", now));
+                    loadLastSync();
                     loadPendingCount();
                 });
             }
@@ -221,6 +234,22 @@ public class ProfileActivity extends AppCompatActivity {
                 .show();
     }
 
+    private void showUpdateConfirmation(String message) {
+        new AlertDialog.Builder(this)
+                .setTitle("Actualización guardada")
+                .setMessage(message)
+                .setPositiveButton("Ir al inicio", (dialog, which) -> navigateToHome())
+                .setCancelable(false)
+                .show();
+    }
+
+    private void navigateToHome() {
+        Intent intent = new Intent(this, sv.edu.ues.vl23003.saldo.ui.home.HomeActivity.class);
+        intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        startActivity(intent);
+        finish();
+    }
+
     private void logout() {
         sessionManager.clearSession();
         Intent intent = new Intent(this, LoginActivity.class);
@@ -232,7 +261,24 @@ public class ProfileActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        loadLastSync();
         loadPendingCount();
+        if (NetworkUtil.isNetworkAvailable(this)) {
+            syncManager.syncAllPendingChanges(new Callback<Integer>() {
+                @Override
+                public void onSuccess(Integer value) {
+                    runOnUiThread(() -> {
+                        loadLastSync();
+                        loadPendingCount();
+                    });
+                }
+
+                @Override
+                public void onError(Exception error) {
+                    // Pending records remain untouched and can be retried manually.
+                }
+            });
+        }
     }
 
     @Override

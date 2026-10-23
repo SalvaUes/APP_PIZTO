@@ -3,10 +3,10 @@ package sv.edu.ues.vl23003.saldo.ui.auth;
 import android.content.Intent;
 import android.os.Bundle;
 import android.widget.Toast;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import sv.edu.ues.vl23003.saldo.data.repository.UserRepository;
 import sv.edu.ues.vl23003.saldo.databinding.ActivityRegisterBinding;
-import sv.edu.ues.vl23003.saldo.ui.home.HomeActivity;
 import sv.edu.ues.vl23003.saldo.util.Callback;
 import sv.edu.ues.vl23003.saldo.util.Validators;
 
@@ -65,8 +65,12 @@ public class RegisterActivity extends AppCompatActivity {
    @Override
    public void onSuccess(Void value) {
     RegisterActivity.this.runOnUiThread(() -> {
-     Toast.makeText(RegisterActivity.this, "Cuenta creada", Toast.LENGTH_SHORT).show();
-     navigateToHome();
+     new AlertDialog.Builder(RegisterActivity.this)
+             .setTitle("Registro completado")
+             .setMessage("Tu cuenta se creó correctamente. Ahora puedes iniciar sesión.")
+             .setPositiveButton("Ir al login", (dialog, which) -> navigateToLogin())
+             .setCancelable(false)
+             .show();
     });
    }
 
@@ -85,8 +89,8 @@ public class RegisterActivity extends AppCompatActivity {
   return editText.getText() != null ? editText.getText().toString() : "";
  }
 
- private void navigateToHome() {
-  Intent intent = new Intent(this, HomeActivity.class);
+ private void navigateToLogin() {
+  Intent intent = new Intent(this, LoginActivity.class);
   intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
   startActivity(intent);
   finish();

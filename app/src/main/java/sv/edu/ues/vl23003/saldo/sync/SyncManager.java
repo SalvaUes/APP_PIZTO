@@ -5,6 +5,8 @@ import androidx.work.Constraints;
 import androidx.work.ExistingPeriodicWorkPolicy;
 import androidx.work.NetworkType;
 import androidx.work.PeriodicWorkRequest;
+import androidx.work.OneTimeWorkRequest;
+import androidx.work.ExistingWorkPolicy;
 import androidx.work.WorkManager;
 import com.google.firebase.firestore.DocumentReference;
 import com.google.firebase.firestore.SetOptions;
@@ -65,6 +67,13 @@ public class SyncManager {
                 SYNC_WORK_NAME,
                 ExistingPeriodicWorkPolicy.KEEP,
                 syncRequest
+        );
+        WorkManager.getInstance(context.getApplicationContext()).enqueueUniqueWork(
+                SYNC_WORK_NAME + "_now",
+                ExistingWorkPolicy.KEEP,
+                new OneTimeWorkRequest.Builder(SyncWorker.class)
+                        .setConstraints(constraints)
+                        .build()
         );
     }
 
@@ -136,8 +145,11 @@ public class SyncManager {
         }
 
         int done = processed.incrementAndGet();
-        if (done == total) {
+        if (done == total && synced.get() == total) {
+            sessionManager.saveLastSync(System.currentTimeMillis());
             callback.onSuccess(synced.get());
+        } else if (done == total) {
+            callback.onError(new Exception("No se pudieron sincronizar todos los cambios"));
         }
     }
 

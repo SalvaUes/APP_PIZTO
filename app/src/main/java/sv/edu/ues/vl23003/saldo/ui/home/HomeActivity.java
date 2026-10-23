@@ -4,6 +4,7 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.view.Menu;
 import android.view.MenuItem;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import com.google.android.material.snackbar.Snackbar;
 import java.text.SimpleDateFormat;
@@ -142,9 +143,27 @@ public class HomeActivity extends AppCompatActivity {
         } else if (id == R.id.menu_movements) {
             startActivity(new Intent(this, MovementListActivity.class));
             return true;
+        } else if (id == R.id.menu_logout) {
+            confirmLogout();
+            return true;
         }
 
         return super.onOptionsItemSelected(item);
+    }
+
+    private void confirmLogout() {
+        new AlertDialog.Builder(this)
+                .setTitle("Cerrar sesión")
+                .setMessage("¿Deseas cerrar tu sesión?")
+                .setPositiveButton("Cerrar sesión", (dialog, which) -> {
+                    sessionManager.clearSession();
+                    Intent intent = new Intent(this, sv.edu.ues.vl23003.saldo.ui.auth.LoginActivity.class);
+                    intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+                    startActivity(intent);
+                    finish();
+                })
+                .setNegativeButton("Cancelar", null)
+                .show();
     }
 
     @Override
